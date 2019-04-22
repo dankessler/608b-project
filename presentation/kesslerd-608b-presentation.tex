@@ -197,7 +197,7 @@
 \begin{frame}
   \frametitle{Formal Model}
   \begin{itemize}
-  \item $\pi(\theta_r \mid \tau_r) = \frac{1}{Z(\tau_r)} \exp( \tau_r \eta(\theta_r))$
+  \item $\pi(\theta_r \mid \tau_r) = \frac{1}{Z(\tau_r)} \exp( \tau_r \cdot \eta(\theta_r))$
   \item $\pi(z_i \mid \mu_i) = \mu_i(z_i): \sum_{k=1}^K \mu_i(k) = 1$
   \item In practice, $\mu_i = \frac{1}{K} \implies \pi(z_i \mid \mu_i) = \frac{1}{K}$
   \item $\pi(\V{z},\M{\theta}) = \pi(\V{z}) \pi(\M{\theta}) = \prod_{i<j} \frac{1}{K} \prod_r \frac{1}{Z(\tau_r)} \exp(\tau_r \cdot \eta(\theta_r))$
