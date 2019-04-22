@@ -1,0 +1,291 @@
+% Copyright 2004 by Till Tantau <tantau@users.sourceforge.net>.
+% 
+% In principle, this file can be redistributed and/or modified under
+% the terms of the GNU Public License, version 2.
+% 
+% However, this file is supposed to be a template to be modified
+% for your own needs. For this reason, if you use this file as a
+% template and not specifically distribute it as part of a another
+% package/program, I grant the extra permission to freely copy and
+% modify this file as you see fit and 9even to delete this copyright
+% notice. 
+
+
+
+\documentclass{beamer}
+\usepackage{hyperref}
+\useoutertheme{miniframes}
+\AtBeginSection[]{\subsection{}}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[url=false,citestyle=authoryear]{biblatex}
+\bibliography{refs.bib}
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+% There are many different themes available for Beamer. A comprehensive
+% list with examples is given here:
+% http://deic.uab.es/~iblanes/beamer_gallery/index_by_theme.html
+% You can uncomment the themes below if you would like to use a different
+% one:
+% \usetheme{AnnArbor}
+% \usetheme{Antibes}
+% \usetheme{Bergen}
+% \usetheme{Berkeley}
+% \usetheme{Berlin}
+% \usetheme{Boadilla}
+% \usetheme{boxes}
+% \usetheme{CambridgeUS}
+% \usetheme{Copenhagen}
+\usetheme{Darmstadt}
+% \usetheme{default}
+% \usetheme{Frankfurt}
+% \usetheme{Goettingen}
+% \usetheme{Hannover}
+% \usetheme{Ilmenau}
+% \usetheme{JuanLesPins}
+% \usetheme{Luebeck}
+% \usetheme{Madrid}
+% \usetheme{Malmoe}
+% \usetheme{Marburg}
+% \usetheme{Montpellier}
+% \usetheme{PaloAlto}
+% \usetheme{Pittsburgh}
+% \usetheme{Rochester}
+% \usetheme{Singapore}
+% \usetheme{Szeged}
+% \usetheme{Warsaw}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\I}{\mathbb{I}}
+
+\newcommand {\framedgraphic}[2] {
+  \begin{frame}{#1}
+    \begin{center}
+      \includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{#2}
+    \end{center}
+  \end{frame}
+}
+
+\newcommand\given[1][]{\:#1\vert\:}
+
+\newcommand{\1}{\mathbbm{1}}
+\newcommand{\ind}[1]{\mathbbm{1}_{\left\{#1\right\}}}
+
+\newcommand{\V}[1]{\ensuremath{\boldsymbol{#1}}} % vector
+
+\newcommand{\M}[1]{\ensuremath{#1}} % matrix
+
+\newcommand{\F}[1]{\ensuremath{\mathrm{#1}}} % math functions in non-italic font
+
+% \newenvironment{problem}[2][Problem]{\begin{trivlist}
+% \item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+
+\title{Community Identification in Weighted Networks}
+
+% A subtitle is optional and this may be deleted
+% \subtitle{Jingfei Zhang, Will Wei Sun, and Lexin Li}
+
+\author{Daniel~Kessler}
+% - Give the names in the same order as the appear in the paper.
+% - Use the \inst{?} command only if the authors have different
+% affiliation.
+
+\institute[kesslerd@umich.edu] % (optional, but mostly needed)
+
+% - Use the \inst command only if there are several affiliations.
+% - Keep it simple, no one is interested in your street address.
+
+\date{April 22nd, 2019}
+% - Either use conference name or its abbreviation.
+% - Not really informative to the audience, more for people (including
+% yourself) who are reading the slides online
+
+% \subject{Theoretical Computer Science}
+% This is only inserted into the PDF information catalog. Can be left
+% out. 
+
+% If you have a file called "university-logo-filename.xxx", where xxx
+% is a graphic format that can be processed by latex or pdflatex,
+% resp., then you can add a logo as follows:
+
+% \pgfdeclareimage[height=0.5cm]{university-logo}{university-logo-filename}
+% \logo{\pgfuseimage{university-logo}}
+
+% Delete this, if you do not want the table of contents to pop up at
+% the beginning of each subsection:
+
+\begin{document}
+
+\maketitle
+\begin{frame}{Outline}
+  \tableofcontents
+\end{frame}
+
+
+
+\section{Introduction: The Stochastic Block Model (SBM)}
+\label{sec:intr-stoch-block}
+
+\begin{frame}
+  \frametitle{Networks and Adjacency Matrices}
+  \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{graphadj}
+    \caption{Undirected Binary Graph and Adjacency Matrix from \href{https://cs.stackexchange.com/questions/71609/adjacency-matrix-and-recognizing-hierarchy}{Stack Exchange}}
+    \label{fig:graphadj}
+  \end{figure}
+  \begin{block}{Notation}
+    \begin{itemize}
+    \item Observe a graph $G = (V, E)$, $n = \lvert V \rvert$
+    \item Adjacency matrix $A \in \left\{ 0, 1 \right\}^{n \times n}$
+    \item $A_{i,j} = 1 \iff (i,j) \in E$
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{Stochatic Block Model}
+  \begin{block}{Classical SBM}
+    \begin{itemize}
+    \item Proposed in \parencite{holland_stochastic_1983}
+    \item Suppose each $v \in V$ can be assigned to one of $K$ communities
+    \item Let $\V{z} \in \left\{ 1, 2, \ldots, K \right\}^n$ give community assignments
+    \item $z_i \sim \operatorname{Categorical}(p_1, p_2, \ldots, p_K)$
+    \item $\M{A}_{i,j} \mid \V{z} \overset{ind}{\sim} \operatorname{Bernoulli}(\M{P}_{z(i),z(j)})$
+    \item $\M{P} \in \left[ 0, 1 \right]^{K \times K}$ parameterizes the blocks
+    \end{itemize}
+  \end{block}
+  \begin{block}{Weighted SBM}
+    \begin{itemize}
+    \item All edges present: $E = \left\{ (i,j) : i \neq j, \in [n] \right\}$) 
+    \item Entries of $\M{A}$ take values in $\mathcal{S} \subseteq \mathbb{R}$
+    \item $\M{A}_{i,j} | \V{z} \overset{ind}{\sim} F(\M{\theta}_{z(i),z(j)})$
+    \item $F$ is some law parameterized by $\M{\theta}$
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+
+
+
+
+\section{Bayesian Formulation of the SBM}
+\label{sec:bayes-form-sbm}
+
+\begin{frame}
+  \frametitle{Bayesian Model}
+  \begin{itemize}
+  \item Proposed in \parencite{aicher_adapting_2013,aicher_learning_2015} 
+  \item Suppose that all edge distributions come from common exponential family
+  \item Use conjugate priors: $\pi_{\tau_r}(\theta_r) = \frac{1}{Z(\tau_r)} \exp(\tau_r \cdot  \eta(\theta_r))$
+  \item Prior (flat) for $\V{z}$: $\pi_i(z_i) = \operatorname{Categorical}\left( \frac{1}{K}, \ldots, \frac{1}{K} \right)$
+  \item Suppose $\V{z} \perp \V{\theta}$ (based on DAG from paper)
+  \item $\pi(z, \theta \mid \V{\tau}) = \prod_i^n \frac{1}{K} \prod_r^R \frac{1}{Z(\tau_r)} \exp( \tau_r \cdot \eta(\theta_r))$
+  \item Let $\pi^{\star}(\V{z}, \M{\theta})$ be the posterior
+    \begin{equation*}
+      \pi^{\star} \propto P(A \mid \V{z}, \M{\theta}) \pi(\V{z}, \M{\theta})
+    \end{equation*}
+
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Formal Model}
+  \begin{itemize}
+  \item $\pi(\theta_r \mid \tau_r) = \frac{1}{Z(\tau_r)} \exp( \tau_r \eta(\theta_r))$
+  \item $\pi(z_i \mid \mu_i) = \mu_i(z_i): \sum_{k=1}^K \mu_i(k) = 1$
+  \item In practice, $\mu_i = \frac{1}{K} \implies \pi(z_i \mid \mu_i) = \frac{1}{K}$
+  \item $\pi(\V{z},\M{\theta}) = \pi(\V{z}) \pi(\M{\theta}) = \prod_{i<j} \frac{1}{K} \prod_r \frac{1}{Z(\tau_r)} \exp(\tau_r \cdot \eta(\theta_r))$
+  \item $P(A \mid \V{z}, \theta) = \left[ \prod_{i < j}  h(A_{i,j}) \right] \exp( \sum_{i < j} T(A_{i,j}) \eta(\theta_{z_i,z_j}) )$
+  \item Posterior $\pi^{*}(\V{z},\M{\theta}) = \frac{P(\M{A} \mid \V{z},\M{\theta}) \pi(z) \pi(\theta)}{\int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} P(\M{A} \mid \V{z}, \M{\theta}) \pi(\V{z}) \pi(\M{\theta}) d \theta}$
+  \item Approximation $q$ to $\pi^{*}$ $q(\V{z}, \theta \mid \V{\mu^{*}}, \V{\tau^{*}}) = \prod_i \mu_i^{*}(z_i) \times \prod_r \frac{1}{Z(\tau_r^{*})} \exp( \tau_r^{*} \cdot \eta(\theta_r))$
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Variational Estimation}
+  This approach proposed in \parencite{aicher_adapting_2013,aicher_learning_2015} (and subsequent derivations adapted therefrom) 
+  \begin{itemize}
+  \item $\pi^{\star}(\V{z}, \M{\theta}) \propto \operatorname{Pr}(\M{A} \mid \V{z}, \M{\theta}) \pi(\V{z}, \M{\theta})$
+  \item Approximate $\pi^{\star}(\V{z}, \M{\theta})$ by factorizable $q(\V{z},\M{\theta}) = q_{\V{z}}(\V{z}) q_{\M{\theta}}(\M{\theta})$
+  \item Choose $q$ that minimizes KL-divergence with posterior
+    \begin{equation*}
+      D_{KL}(q \parallel \pi^{\star}) = - \int q \log \frac{\pi^{\star}}{q}
+    \end{equation*}
+  \item Doing this directly is hard, but there's another way...
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Variational Inference Trick}
+  Recall that the marginal log likelihood of the data is a fixed quantity (since $A$) has been observed
+  \begin{align*}
+    C &= \log P(A) \\
+    &= \int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z},\theta) d\theta \log P(A) \tag{Multiply by 1}\\
+              &= \int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z},\theta) \log \frac{P(A, \V{z}, \M{\theta})}{P(\V{z}, \M{\theta} \mid A)} d\theta \tag{Conditioning tricks}\\
+              &= \underbrace{\int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z},\theta) \log \frac{P(A, \V{z}, \M{\theta})}{q(\V{z}, \theta)} d\theta}_{\mathcal{G}(q)}  \underbrace{- \int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z}, \theta) \frac{P(\V{z}, \M{\theta} \mid A)}{q(\V{z}, \theta)} d\theta}_{D_{\text{KL}}(q \parallel \pi^{*})}
+  \end{align*}
+  $D_{\text{KL}}(q \parallel \pi^{*}) = \underbrace{\log P(A)}_{\text{Constant}} - \mathcal{G}(q)$, so maximizing $\mathcal{G}$ minimizes KL
+\end{frame}
+
+\begin{frame}
+  \frametitle{Maximizing $\mathcal{G}(q)$}
+  \begin{align*}
+  \mathcal{G}(q) &= \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log \frac{P(A, \V{z}, \theta)}{q(\V{z},\theta)} d\theta \\
+                 &= \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log \frac{P(A \mid \V{z}, \theta) \pi(\V{z}, \theta)}{q(\V{z},\theta)} d\theta \\
+                 &= \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log P(A \mid \V{z}, \theta) d\theta + \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log \frac{\pi(\V{z}, \theta)}{q(\V{z},\theta)}  d\theta \\
+    &= \mathbb{E}_q \left[ \log P(A \mid \V{z}, \theta) \right] + \underbrace{\mathbb{E}_q \left[ \log \frac{\pi(\V{z}, \theta)}{q(\V{z}, \theta)} \right]}_{-D_{\text{KL}}(q \parallel \pi)}
+  \end{align*}
+We want to choose a $q$ that maximizes our log likelihood, but without straying too far from the prior $\pi$
+\end{frame}
+
+\begin{frame}
+  \frametitle{Algorithm and Updates}
+  \begin{itemize}
+  \item We have that $G \propto \sum_r^R  E_q (T_r + \tau_r - \tau_r^{*}) E_q(\eta(\theta_r)) + \sum_r^R \log \frac{Z(\tau_r)}{Z(\tau_r^{*})} + \sum_i + \sum_{z_i \in [K]} \mu_i^{*} \log \frac{\mu_i(z_i)}{\mu_i^{*}(z_i)}$
+  \item $E_q T_r = \sum_{i < j} \sum_{(z_i, z_j) = r}$ $\mu_i^{*}(z_i) \mu_j^{*} (z_j) T(A_{i,j})$
+  \item $E_q \eta(\theta_r) = \frac{\partial }{\partial {\tau}} \log Z({\tau}) \left. \right|_{\tau = \tau_r^{*}}$
+  \item Taking gradients yields update rules
+  \item $\tau_r^{*} = \tau_r + E_q T_r$: makes sense given conjugacy
+  \item $\mu_i^{*}(z) \propto \exp \left( \sum_r \frac{\partial E_q T_r}{\partial \mu_i(z)} \cdot E_q \eta(\theta_r) \right)$
+  \item Normalize the $\mu_i^{*}$ to sum to 1
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Results and Next Steps}
+  \begin{itemize}
+  \item \parencite{aicher_learning_2015} Provides a MATLAB-based implementation
+  \item Experiments with small graphs show good recovery of true labels
+  \end{itemize}
+
+  \begin{block}{Work in Progress (See final report)}
+    \begin{itemize}
+    \item (Na\"ive) Sampling-Based Approach to find MAP
+    \item Compare sampling-approach with recent github package \href{{https://github.com/jg-you/sbm_canonical_mcmc/}}{recent github package} by Jean-Gabriel Young (Postdoc at UMich)
+    \item More comprehensive experiments
+    \item Comparison of Variational Method with Sampling-Based Methods (in terms of runtime/efficiency as well as accuracy)
+    \end{itemize}
+  \end{block}
+
+\end{frame}
+
+
+\begin{frame}[allowframebreaks]
+  \frametitle{References}
+  \printbibliography{}
+  
+\end{frame}
+
+
+
+
+
+
+
+\end{document}
