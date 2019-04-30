@@ -1,0 +1,199 @@
+\documentclass[12pt]{article}   % you have 10pt, 11pt, or 12pt options
+\usepackage[margin=1in]{geometry}
+
+
+\usepackage{physics}
+\usepackage{amsmath}
+\usepackage{amsmath,amsthm,amssymb,amsfonts,bbm,framed}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{tikz}
+
+\usetikzlibrary{bayesnet}
+\usetikzlibrary{shapes,arrows}
+
+\usepackage[url=false]{biblatex}
+\bibliography{refs.bib}
+
+
+%% custom macros
+% vector
+\newcommand{\V}[1]{\ensuremath{\boldsymbol{#1}}}
+% matrix
+\newcommand{\M}[1]{\ensuremath{#1}}
+% math functions in non-italic font
+\newcommand{\F}[1]{\ensuremath{\mathrm{#1}}}
+
+
+\begin{document}  % necessary part of document
+
+
+\title{Community Identification in Weighted Networks}
+\author{Dan Kessler}
+
+\maketitle
+
+\begin{abstract}
+  In this report we explore the problem of community identification in weighted networks under the stochastic block model (SBM).
+  First, we introduce some important notation and ideas regarding graphs and networks and then providing background on the classical SBM.
+  We then describe how it can be readily extended to the weighted case.
+  The challenge and motivation for community identification is then introduced.
+  We next provide a Bayesian formulation of the weighted SBM, and then review an approach using Variational Bayes (VB) to recover community identities and other parameters of interest.
+  We then derive a Gibbs sampler and present numerical experiments comparing our sampler to the VB approach.
+  We conclude by discussing limitations and speculate as to reasons for the disappointing performance of our sampler.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+
+The investigation of the statistical properties of networks is a quickly growing field with many important applications.
+While data analysis tasks in conventional statistical settings frequently require assumptions about independence, network data is fundamentally relational, as an observed network encodes relationships (edges) between units of observation (vertices).
+
+While substantial prior work has focused on the statistical properties of binary networks, many modern applications involve networks that are most naturally considered weighted.
+For example, in neuroscience, networks are frequently used to capture brain connectivity information, where edges represent some measure of dependence (frequently pairwise correlations of timeseries) between multiple locations in the brain, as captured with various brain imaging techniques (e.g., functional magnetic resonance imaging).
+
+Many networks exhibit community structure, i.e., rather than treating each edge weight as following a unique distribution, one can group vertices in such a way that certain groups of edges become stochastically equivalent conditional on these groups.
+A natural task, then, is to infer the community labels for a given network.
+
+This report considers the problem of community detection in the weighted network setting for a particular class of generative networks models, i.e., the stochastic block model.
+
+\section{Network Preliminaries and Notation}
+\label{sec:netw-prel-notat}
+
+
+Let $G=(V, E)$ be a graph, where $V$ is a set of vertices and $E \subseteq \left\{ (v, v') : v, v' \in V \right\}$ is a set of edges connecting some of the vertices in $V$.
+In particular, if $(v, v') \in E$, then there is an edge linking vertex $v$ to vertex $v'$.
+Suppose that $\lvert V \rvert = n < \infty$, i.e., we have $n$ vertices.
+Without loss of generality, number the vertices $V$ as $1, 2, \ldots, n$.
+In this case, we can represent the edge information using the adjacency matrix $A \in \left\{ 0, 1 \right\}^{n \times n}$, where $A_{i,j} = 1 \iff (i,j) \in E$.
+See \autoref{fig:graphadj} for a graphical depiction of the relationship between graphs and their representation as adjacency matrices.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.7\textwidth]{graphadj}
+  \caption{Undirected Binary Graph and Adjacency Matrix from \href{https://cs.stackexchange.com/questions/71609/adjacency-matrix-and-recognizing-hierarchy}{Stack Exchange}}
+  \label{fig:graphadj}
+\end{figure}
+
+
+While substantial prior work has focused on this problem in the classical setting where the network is a binary graph, i.e., edges are in $\left\{ 0,1 \right\}$, in this report we consider \emph{weighted graphs}, i.e., complete graphs where each edge has an attribute in $\mathbb{R}$.
+We can naturally adjust the adjacency matrix such that now, $A \in \mathbb{R}^{n \times n}$, where the $i,j$ entry now captures the \emph{weight} of the edge linking the $i$'th and $j$'th vertices.
+
+
+
+
+
+
+\section{Background: Stochastic Block Models}
+\label{sec:backgr-stoch-block}
+The stochastic block model (SBM) was first introduced by \textcite{holland_stochastic_1983} and is a frequently employed generative model used in the analysis of networks in a variety of settings.
+Under the SBM, we suppose each $v \in V$ can be assigned to one of $K$ communities, i.e., let $\V{z} \in \left\{ 1, 2, \ldots, K \right\}^n$ give community assignments.
+This assignment process is stochastic, with $z_i \overset{iid}{\sim} \operatorname{Categorical}(p_1, p_2, \ldots, p_K)$.
+Conditional on $\V{z}$, the edges are independent with a distribution that depends only on the community memberships of the incident nodes, i.e., $\M{A}_{i,j} \mid \V{z} \overset{ind}{\sim} \operatorname{Bernoulli}(\M{P}_{z(i),z(j)})$, where
+$\M{P} \in \left[ 0, 1 \right]^{K \times K}$ is a matrix of parameters that govern the probability of an edge for group of dyads.
+
+It is possible to extend the SBM to the weighted case.
+First, we suppose that all edges are present, i.e.,
+$$E = \left\{ (i,j) : i \neq j, \in [n] \right\}$$, and as discussed above we let entries of $A$ take values in $\mathbb{R}$.
+Rather than a Bernoulli likelihood for each edge's existence, we can consider a more general class of distributions, but for convenience we restrict ourselves to consideration of exponential families.
+Now, we can replace the matrix of parameters $P$ with $\theta \in \mathbb{R}^{n \times n}$, and now $$\M{A}_{i,j} | \V{z} \overset{ind}{\sim} F(\M{\theta}_{z(i),z(j)}),$$ where $F$ is some law parameterized by $\M{\theta}$.
+
+
+
+
+\section{Bayesian Formulation}
+\label{sec:bayesian-formulation}
+
+We follow a formulation laid out in \textcite{aicher_adapting_2013,aicher_learning_2015}.
+As discussed above, we suppose that all edge distributions come from common exponential family, and we use conjugate priors for each of these parameters, i.e.,
+\begin{equation*}
+\pi_{\tau_r}(\theta_r) = \frac{1}{Z(\tau_r)} \exp(\tau_r \cdot  \eta(\theta_r)).
+\end{equation*}
+We then choose a flat prior for $\V{z}$:
+\begin{equation*}
+\pi_i(z_i) = \operatorname{Categorical}\left( \frac{1}{K}, \ldots, \frac{1}{K} \right).\label{eq:1}
+\end{equation*}
+Moreover, we assume $\V{z} \perp \V{\theta}$.
+We can then write the prior as
+$$\pi(z, \theta \mid \V{\tau}) = \prod_i^n \frac{1}{K} \prod_r^R \frac{1}{Z(\tau_r)} \exp( \tau_r \cdot \eta(\theta_r))$$.
+Letting $\pi^{\star}(\V{z}, \M{\theta})$ be the posterior, we have
+\begin{equation*}
+  \pi^{\star} \propto P(A \mid \V{z}, \M{\theta}) \pi(\V{z}, \M{\theta}).
+\end{equation*}
+
+
+With this in place, the likelihood is given by
+\begin{equation*}
+  P(A \mid \V{z}, \theta) = \left[ \prod_{i < j}  h(A_{i,j}) \right] \exp( \sum_{i < j} T(A_{i,j}) \eta(\theta_{z_i,z_j}) ),
+\end{equation*}
+and the posterior by
+\begin{equation*}
+  \pi^{*}(\V{z},\M{\theta}) = \frac{P(\M{A} \mid \V{z},\M{\theta}) \pi(z) \pi(\theta)}{\int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} P(\M{A} \mid \V{z}, \M{\theta}) \pi(\V{z}) \pi(\M{\theta}) d \theta}
+\end{equation*}
+
+
+
+\section{Variational Bayes Approach}
+\label{sec:vari-bayes-appr}
+Unfortunately, the posterior described above is presents substantial computational challenges due to the combinatorics invovled in integrating out over $\V{z}$.
+\textcite*{aicher_adapting_2013,aicher_learning_2015} propose instead to approximate $\pi^{*}$ by a factorizable $q$, i.e.,
+\begin{equation*}
+  q(\V{z}, \theta \mid \V{\mu^{*}}, \V{\tau^{*}}) = \prod_i \mu_i^{*}(z_i) \times \prod_r \frac{1}{Z(\tau_r^{*})} \exp( \tau_r^{*} \cdot \eta(\theta_r))
+\end{equation*}
+
+
+\section{Sampling-Based Approach}
+\label{sec:sampl-based-appr}
+
+\Textcite{snijders_estimation_1997} proposes a Gibbs sampler for the setting of the undirected SBM with binary edges.
+Their notation differs from (and directly conflicts with) the conventions in \parencite{aicher_adapting_2013,aicher_learning_2015}, so our treatment here modifies their notation to be internally consistent.
+In essence, they propose a two-step sampler.
+First, we draw $(\mu, \theta) \sim \pi^{*}(X^p, y)$
+
+\section{Discussion}
+\label{sec:discussion}
+
+
+
+
+
+
+In this project I propose to investigate and (re)-implement procedures introduced in \cite{aicher_adapting_2013,aicher_learning_2015} for estimation of community labels for weighted stochastic block models, possibly extending these approaches to settings with a sample of networks and nodal covariates.
+
+These papers consider a weighted extension of the stochastic block model (SBM) \cite{holland_stochastic_1983}, which is a frequently employed generative model used in the analysis of networks in a variety of settings.
+In particular, the SBM provides a generative model for the construction of network data.
+In the classic binary case with $n$ nodes, $c \in \left\{ 1, 2, \ldots, K \right\}^n$ is a random vector that serves to assign each of the nodes to one of $K$ ``communities.''
+Conditional on $c$, the edges of the adjacency matrix $A_{i,j}$ are independent Bernoulli; all edges in a given ``block'' (i.e., all those edges connecting nodes from community $k$ to community $k'$) are further identically distributed with probability of connection given by $B_{k,k'}$.
+In most settings, all that is observed is a single adjacency matrix $A$ and the task is to infer the community memberships $c$ and to subsequently estimate the entries of $B$.
+
+The data that I consider in my research  is motivated by applications in cognitive neuroscience and is related to the networks generated by the stochastic block model, but with several important extensions.
+First, I have been studying cases where we observe a \emph{sample} of networks on a common node set (or where the node set can be meaningfully registered across observations.
+Second, the networks that I study are typically (i) dense, (ii) weighted, and (iii) signed.
+Finally, I consider cases where in addition to observing the adjacency matrices $A^{(i)}$, we also observe nodal attributes $X^{(i)} \in \mathbb{R}^{n \times p}$, where $p$ is the number of covariates observed at each node.
+
+While my current projects are largely focused on predicting observation-specific labels ($y_i)$ using $(A_i,X_i)$, in that work we currently consider $c$ fixed, known, and shared across all observations.
+However, in future iterations of the project I intend to consider cases where $c$ is considered unknown or possibly cases where $c$ varies across the sample.
+It has been suggested to me by my advisor that a better understanding of procedures that estimate $c$, which frequently involve some sort of stochastic optimization, in addition to developing an implementation myself, would be a useful tool for subsequent steps in my research, and that this class project is a good opportunity to undertake this work.
+
+Unfortunately, direct estimation of $c$ is in most settings an $NP$-hard combinatorial problem, and so alternative strategies are employed.
+In \cite{aicher_adapting_2013,aicher_learning_2015} the authors introduce variational Bayesian algorithms for estimating the posterior distribution of both the community labels and the parameters governing the edge distributions.
+A reference implementation for these approaches is provided by the authors online, and as a pedagogical project I will re-implement their technique.
+Depending on progress in this front, I will consider extensions that use Monte Carlo strategies from class in order to approximate for the posterior (rather than using variational methods).
+If this proves successful, I will explore extensions of their model (and code) to the ``sample-of-networks'' settings described above.
+
+
+
+
+
+\printbibliography
+
+\end{document}
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
+
+% LocalWords:  variational
