@@ -1,4 +1,4 @@
-\documentclass[12pt]{article}   % you have 10pt, 11pt, or 12pt options
+\documentclass[11pt]{article}   % you have 10pt, 11pt, or 12pt options
 \usepackage[margin=1in]{geometry}
 
 
@@ -39,8 +39,9 @@
   We then describe how it can be readily extended to the weighted case.
   The challenge and motivation for community identification is then introduced.
   We next provide a Bayesian formulation of the weighted SBM, and then review an approach using Variational Bayes (VB) to recover community identities and other parameters of interest.
-  We then derive a Gibbs sampler and present numerical experiments comparing our sampler to the VB approach.
-  We conclude by discussing limitations and speculate as to reasons for the disappointing performance of our sampler.
+  We then derive a Gibbs sampler as an alternative to the VB approach.
+  Unfortunately, difficulties with the implementation precluded the inclusion of numerical results, but work on this project is ongoing as community detection in the weighted network setting will support current applied research projects involving brain imaging.
+  We conclude by discussing limitations and speculate as to challenges inherent in the approach outlined in our sampler.
 \end{abstract}
 
 \section{Introduction}
@@ -94,7 +95,7 @@ $\M{P} \in \left[ 0, 1 \right]^{K \times K}$ is a matrix of parameters that gove
 
 It is possible to extend the SBM to the weighted case.
 First, we suppose that all edges are present, i.e.,
-$$E = \left\{ (i,j) : i \neq j, \in [n] \right\}$$, and as discussed above we let entries of $A$ take values in $\mathbb{R}$.
+$$E = \left\{ (i,j) : i \neq j, \in [n] \right\},$$ and as discussed above we let entries of $A$ take values in $\mathbb{R}$.
 Rather than a Bernoulli likelihood for each edge's existence, we can consider a more general class of distributions, but for convenience we restrict ourselves to consideration of exponential families.
 Now, we can replace the matrix of parameters $P$ with $\theta \in \mathbb{R}^{n \times n}$, and now $$\M{A}_{i,j} | \V{z} \overset{ind}{\sim} F(\M{\theta}_{z(i),z(j)}),$$ where $F$ is some law parameterized by $\M{\theta}$.
 
@@ -136,35 +137,121 @@ and the posterior by
 \section{Variational Bayes Approach}
 \label{sec:vari-bayes-appr}
 Unfortunately, the posterior described above is presents substantial computational challenges due to the combinatorics invovled in integrating out over $\V{z}$.
-\textcite*{aicher_adapting_2013,aicher_learning_2015} propose instead to approximate $\pi^{*}$ by a factorizable $q$, i.e.,
+\textcite*{aicher_adapting_2013,aicher_learning_2015} propose instead to approximate $\pi^{*}$ by a factorizable by a factorizable $q(\V{z},\M{\theta}) = q_{\V{z}}(\V{z}) q_{\M{\theta}}(\M{\theta})$, in particular
 \begin{equation*}
-  q(\V{z}, \theta \mid \V{\mu^{*}}, \V{\tau^{*}}) = \prod_i \mu_i^{*}(z_i) \times \prod_r \frac{1}{Z(\tau_r^{*})} \exp( \tau_r^{*} \cdot \eta(\theta_r))
+  q(\V{z}, \theta \mid \V{\mu^{*}}, \V{\tau^{*}}) = \prod_i \mu_i^{*}(z_i) \times \prod_r \frac{1}{Z(\tau_r^{*})} \exp( \tau_r^{*} \cdot \eta(\theta_r)).
 \end{equation*}
+We wish to choose the $q$ with minimal KL-divergence with posterior:
+\begin{equation*}
+  \operatorname*{argmin}_q D_{KL}(q \parallel \pi^{\star}) = - \int q \log \frac{\pi^{\star}}{q}
+\end{equation*}
+While this minimization may seem especially difficult given the unpleasant nature of the posterior $\pi^{*}$, there's another way.
+Recall that the marginal log likelihood of the data is a fixed quantity since $A$ has been observed.
+Through manipulation, we obtain
+  \begin{align*}
+    C &= \log P(A) \\
+    &= \int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z},\theta) d\theta \log P(A) \tag{Multiply by 1}\\
+              &= \int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z},\theta) \log \frac{P(A, \V{z}, \M{\theta})}{P(\V{z}, \M{\theta} \mid A)} d\theta \tag{Conditioning tricks}\\
+              &= \underbrace{\int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z},\theta) \log \frac{P(A, \V{z}, \M{\theta})}{q(\V{z}, \theta)} d\theta}_{\mathcal{G}(q)}  \underbrace{- \int_{\Theta} \sum_{\V{z} \in \mathcal{Z}} q(\V{z}, \theta) \frac{P(\V{z}, \M{\theta} \mid A)}{q(\V{z}, \theta)} d\theta}_{D_{\text{KL}}(q \parallel \pi^{*})}
+  \end{align*}
+  Finally, we can rewrite the last result as
+  \begin{equation*}
+  D_{\text{KL}}(q \parallel \pi^{*}) = \underbrace{\log P(A)}_{\text{Constant}} - \mathcal{G}(q),
+\end{equation*}
+thus maximizing $\mathcal{G}$ minimizes the KL divergence as desired.
+
+We can obtain some intuition for this approach by inspecting the form of $\mathcal{G}$:
+\begin{align*}
+  \mathcal{G}(q) &= \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log \frac{P(A, \V{z}, \theta)}{q(\V{z},\theta)} d\theta \\
+                 &= \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log \frac{P(A \mid \V{z}, \theta) \pi(\V{z}, \theta)}{q(\V{z},\theta)} d\theta \\
+                 &= \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log P(A \mid \V{z}, \theta) d\theta + \int_{\Theta} \sum_{\V{Z} \in \mathcal{Z}} q(\V{z}, \theta) \log \frac{\pi(\V{z}, \theta)}{q(\V{z},\theta)}  d\theta \\
+                 &= \mathbb{E}_q \left[ \log P(A \mid \V{z}, \theta) \right] + \underbrace{\mathbb{E}_q \left[ \log \frac{\pi(\V{z}, \theta)}{q(\V{z}, \theta)} \right]}_{-D_{\text{KL}}(q \parallel \pi)}.
+\end{align*}
+In the last line, we observe that we will be choosing a $q$ that maximizes our expected log likelihood, but that is regularized through the second term, which essentially penalizes deviation from the prior $\pi$.
+\textcite{aicher_adapting_2013,aicher_learning_2015} note that as with many problems in Bayesian inference, given sufficiently large data, this first term will typically dominate and overwhelm the contribution of the prior.
+
+\textcite{aicher_adapting_2013,aicher_learning_2015} present an iterative algorithm for maximizing $\mathcal{G}(q)$.
+Briefly,  we have that 
+\begin{align*}
+G &\propto \sum_r^R  E_q (T_r + \tau_r - \tau_r^{*}) E_q(\eta(\theta_r)) + \sum_r^R \log \frac{Z(\tau_r)}{Z(\tau_r^{*})} + \sum_i + \sum_{z_i \in [K]} \mu_i^{*} \log \frac{\mu_i(z_i)}{\mu_i^{*}(z_i)} \\
+  E_q T_r &= \sum_{i < j} \sum_{(z_i, z_j) = r} \mu_i^{*}(z_i) \mu_j^{*} (z_j) T(A_{i,j}) \\
+  E_q \eta(\theta_r) &= \frac{\partial }{\partial {\tau}} \log Z({\tau}) \left. \right|_{\tau = \tau_r^{*}},
+\end{align*}
+and by taking gradients we can obtain update rules.
+MATLAB code for this algorithm is provided by the authors \href{http://tuvalu.santafe.edu/~aaronc/wsbm/}{online}.
 
 
 \section{Sampling-Based Approach}
 \label{sec:sampl-based-appr}
 
-\Textcite{snijders_estimation_1997} proposes a Gibbs sampler for the setting of the undirected SBM with binary edges.
+We wished to explore a sampling-based approach in addition to the VB approach outlined above.
+\Textcite{snijders_estimation_1997} propose a Gibbs sampler for the setting of the undirected SBM with binary edges, which we extend to the weighted case.
 Their notation differs from (and directly conflicts with) the conventions in \parencite{aicher_adapting_2013,aicher_learning_2015}, so our treatment here modifies their notation to be internally consistent.
-In essence, they propose a two-step sampler.
-First, we draw $(\mu, \theta) \sim \pi^{*}(X^p, y)$
+
+First, we use a slightly extended form of the model introduced in \autoref{sec:bayesian-formulation}, where we will put a prior on $\mu$.
+Since the likelihood of $\V{z} \mid \mu$ is multinomial\footnote{or with some notational adjustment, categorical}, choosing a Dirichlet prior with hyperparameter $\alpha$ is a natural choice that gives conjugacy.
+Like the model from \textcite{aicher_adapting_2013,aicher_learning_2015}, our approach can be readily generalized to exponential family likelihoods for $A$ in general, for notational compactness we consider the case where the likelihood of $A$ is normal with known (unit) variance, i.e., $A_{i,j} \mid \theta, \V{z} \sim N(\theta_{z_i,z_j},1)$, in which case it is natural to choose a normal distribution as the prior for $\theta$ with hyperparameters $\mu_0$ and $\sigma^2_0$ in order to achieve conjugacy, i.e., $\theta_{i,j} \sim N(\mu_0, \sigma_0^2)$.
+A graphical depiction of our model is presented in \autoref{fig:plate-overview}.
+
+
+Adapting their approach, we arrive at two-step sampler.
+Assuming we index our samples by $p$, and supposing we have current values  $\mu^{(p)}, \theta^{(p)}, \V{z}^{(p)}$, we first draw $(\theta^{(p+1)}, \mu^{(p+1)}$ from the conditional distribution $(\theta, \mu \mid Z^{(p)}, A)$.
+Next, we iterate through the components of $\V{z}$, and draw each conditional on all the other $\V{z}$ (using any new draws in the present step where possible),
+
+In particular, our approach involves the following.
+% First, $\theta \mid \V{Z}, A, \mu \overset{d}{=} \theta \mid \V{Z}, A$, by d-separation argument from the DAG, see \autoref{fig:plate-overview}).
+yLetting $n_{i,j}$ denote the number of edges in the $i,j$ block and letting $t_{i,j}$ denote the sum of the edges in the $i,j$ block (with blocks defined based on the current $Z$), by conju
+% by conjugacy $\theta_{i,j} \mid \V{Z}, A; \mu_0, \sigma_0^2 \sim N( \left( \frac{1}{\sigma_0^2 + \frac{n_{i,j}}{\sigma^2} \right)^{-1} \left( \frac{\mu_0}{\sigma_0^2} + \frac{t_{i,j}}{\sigma^2} \right)$, so this update is straightforward.
+
+Next, 
+
+
+R code implementing this procedure is available on \href{https://github.com/dankessler/608b-project}{github}, along with a short script that conducts a proof-of-concept numerical experiment.\footnote{Whilte the code presently ``works'', i.e., produces results and not errors, the author believes that the current implementation is incorrect, as the results obtained are fairly nonsensical. The code will be updated as the author continues to work to implement this sampler so that it can be integrated into their broader research.}
+
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}
+    
+    % using BayesNet library: https://github.com/jluttine/tikz-bayesnet
+
+    % Nodes first I guess
+
+    \node[obs] (a) {$\alpha$};
+    \node[latent, right=of a] (u) {$\mu$};
+    \node[latent, right=of u] (z) {$\V{z}$};
+    \node[obs, below right=1 of z] (A) {$A$};
+    \node[latent, below=2 of z] (t) {$\theta$};
+    \node[obs, above left=0.5 and 1 of t] (u0) {$\mu_0$};
+    \node[obs, below left=0.5 and 1 of t] (s0) {$\sigma_0^2$};
+
+    % Set up plate
+    % \plate {subs} {(y) (B) (th) (A) (X)} {N};
+
+    % dot products
+
+
+    % wire up edges
+    \edge[->]{z,t}{A};
+    \edge[->]{a}{u};
+    \edge[->]{u}{z};
+    \edge[->]{u0}{t};
+    \edge[->]{s0}{t};
+    % \edge[->]{W, B, beta, th, sig2}{y};
+    % \edge[->]{B,c}{A};
+    % \edge[->]{th,c}{X};
+
+
+
+  \end{tikzpicture}  
+  \caption{Graphical depiction of generative model. Grayed nodes are observed (or fixed hyperparameters), white nodes are latent.}
+  \label{fig:plate-overview}
+\end{figure}
 
 \section{Discussion}
 \label{sec:discussion}
 
 
-
-
-
-
-In this project I propose to investigate and (re)-implement procedures introduced in \cite{aicher_adapting_2013,aicher_learning_2015} for estimation of community labels for weighted stochastic block models, possibly extending these approaches to settings with a sample of networks and nodal covariates.
-
-These papers consider a weighted extension of the stochastic block model (SBM) \cite{holland_stochastic_1983}, which is a frequently employed generative model used in the analysis of networks in a variety of settings.
-In particular, the SBM provides a generative model for the construction of network data.
-In the classic binary case with $n$ nodes, $c \in \left\{ 1, 2, \ldots, K \right\}^n$ is a random vector that serves to assign each of the nodes to one of $K$ ``communities.''
-Conditional on $c$, the edges of the adjacency matrix $A_{i,j}$ are independent Bernoulli; all edges in a given ``block'' (i.e., all those edges connecting nodes from community $k$ to community $k'$) are further identically distributed with probability of connection given by $B_{k,k'}$.
-In most settings, all that is observed is a single adjacency matrix $A$ and the task is to infer the community memberships $c$ and to subsequently estimate the entries of $B$.
 
 The data that I consider in my research  is motivated by applications in cognitive neuroscience and is related to the networks generated by the stochastic block model, but with several important extensions.
 First, I have been studying cases where we observe a \emph{sample} of networks on a common node set (or where the node set can be meaningfully registered across observations.
@@ -173,14 +260,6 @@ Finally, I consider cases where in addition to observing the adjacency matrices 
 
 While my current projects are largely focused on predicting observation-specific labels ($y_i)$ using $(A_i,X_i)$, in that work we currently consider $c$ fixed, known, and shared across all observations.
 However, in future iterations of the project I intend to consider cases where $c$ is considered unknown or possibly cases where $c$ varies across the sample.
-It has been suggested to me by my advisor that a better understanding of procedures that estimate $c$, which frequently involve some sort of stochastic optimization, in addition to developing an implementation myself, would be a useful tool for subsequent steps in my research, and that this class project is a good opportunity to undertake this work.
-
-Unfortunately, direct estimation of $c$ is in most settings an $NP$-hard combinatorial problem, and so alternative strategies are employed.
-In \cite{aicher_adapting_2013,aicher_learning_2015} the authors introduce variational Bayesian algorithms for estimating the posterior distribution of both the community labels and the parameters governing the edge distributions.
-A reference implementation for these approaches is provided by the authors online, and as a pedagogical project I will re-implement their technique.
-Depending on progress in this front, I will consider extensions that use Monte Carlo strategies from class in order to approximate for the posterior (rather than using variational methods).
-If this proves successful, I will explore extensions of their model (and code) to the ``sample-of-networks'' settings described above.
-
 
 
 
