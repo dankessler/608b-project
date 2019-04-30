@@ -1,5 +1,5 @@
 \documentclass[11pt]{article}   % you have 10pt, 11pt, or 12pt options
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=0.8in]{geometry}
 
 
 \usepackage{physics}
@@ -136,8 +136,8 @@ and the posterior by
 
 \section{Variational Bayes Approach}
 \label{sec:vari-bayes-appr}
-Unfortunately, the posterior described above is presents substantial computational challenges due to the combinatorics invovled in integrating out over $\V{z}$.
-\textcite*{aicher_adapting_2013,aicher_learning_2015} propose instead to approximate $\pi^{*}$ by a factorizable by a factorizable $q(\V{z},\M{\theta}) = q_{\V{z}}(\V{z}) q_{\M{\theta}}(\M{\theta})$, in particular
+Unfortunately, the posterior described above is presents substantial computational challenges due to the combinatorics involved in integrating out over $\V{z}$.
+\textcite*{aicher_adapting_2013,aicher_learning_2015} propose instead to approximate $\pi^{*}$ by a factorizable $q(\V{z},\M{\theta}) = q_{\V{z}}(\V{z}) q_{\M{\theta}}(\M{\theta})$, in particular
 \begin{equation*}
   q(\V{z}, \theta \mid \V{\mu^{*}}, \V{\tau^{*}}) = \prod_i \mu_i^{*}(z_i) \times \prod_r \frac{1}{Z(\tau_r^{*})} \exp( \tau_r^{*} \cdot \eta(\theta_r)).
 \end{equation*}
@@ -199,14 +199,41 @@ Assuming we index our samples by $p$, and supposing we have current values  $\mu
 Next, we iterate through the components of $\V{z}$, and draw each conditional on all the other $\V{z}$ (using any new draws in the present step where possible),
 
 In particular, our approach involves the following.
-% First, $\theta \mid \V{Z}, A, \mu \overset{d}{=} \theta \mid \V{Z}, A$, by d-separation argument from the DAG, see \autoref{fig:plate-overview}).
-yLetting $n_{i,j}$ denote the number of edges in the $i,j$ block and letting $t_{i,j}$ denote the sum of the edges in the $i,j$ block (with blocks defined based on the current $Z$), by conju
-% by conjugacy $\theta_{i,j} \mid \V{Z}, A; \mu_0, \sigma_0^2 \sim N( \left( \frac{1}{\sigma_0^2 + \frac{n_{i,j}}{\sigma^2} \right)^{-1} \left( \frac{\mu_0}{\sigma_0^2} + \frac{t_{i,j}}{\sigma^2} \right)$, so this update is straightforward.
+First, $\theta \mid \V{Z}, A, \mu \overset{d}{=} \theta \mid \V{Z}, A$, by d-separation argument from the DAG, see \autoref{fig:plate-overview}).
+Letting $n_{i,j}$ denote the number of edges in the $i,j$ block and letting $t_{i,j}$ denote the sum of the edges in the $i,j$ block (with blocks defined based on the current $Z$), by conjugacy we have
+\begin{equation*}
+  \theta_{i,j} \mid \V{Z}, A; \mu_0, \sigma_0^2 \sim N \left( \left( \frac{1}{\sigma_0^2} +  \frac{n_{i,j}}{\sigma^2} \right)^{-1} )  \left( \frac{\mu_0}{\sigma_0^2} + \frac{t_{i,j}}{\sigma^2} \right) \right)
+\end{equation*}
+and this draw is straightforward.
 
-Next, 
+Next, $\mu \mid A, \V{Z} \overset{d}{=} \mu \mid Z$, again by DAG argument.
+In particular, letting $\V{r}$ be a vector holding the number of vertices assigned to each of the communities according to the current $Z$, we have
+\begin{equation*}
+  \mu \mid \V{Z} \sim \operatorname{Dirichlet}(\alpha + \V{r}),
+\end{equation*}
+and this draw is also straightforward.
 
+Drawing the $Z_i$ is slightly more involved.
+Because each of the $Z_i$ can take one of $k$ values, we evaluate the joint density for that value, and then by summing over the possible values we can get our normalizing constant.
+Thus, we need only a convention expression that is at least proportional to the joint density.
+\begin{align*}
+  P(Z, \theta, \mu, A) &= P(A | Z, \theta, \mu) P(Z, \theta, \mu) \\
+                       &= P(A | Z, \theta, \mu) P(Z | \theta, \mu) P(\theta, \mu) \\
+                       & \propto P(A | Z, \theta) P(Z | \mu)
+\end{align*}
+The first time is the likelihood of our data, which is straightforward to compute, and the second term is the likelihood of $Z$, which is also straightforward since conditional on $\mu$ it is multinomial.
 
-R code implementing this procedure is available on \href{https://github.com/dankessler/608b-project}{github}, along with a short script that conducts a proof-of-concept numerical experiment.\footnote{Whilte the code presently ``works'', i.e., produces results and not errors, the author believes that the current implementation is incorrect, as the results obtained are fairly nonsensical. The code will be updated as the author continues to work to implement this sampler so that it can be integrated into their broader research.}
+There are several problems with this approach.
+First, as is frequently the case with mixture models, the distribution is only identified up to some relabeling of the groups.
+For example, if we swap the labels in $Z$ but make comparable changes to rows and columns of $\theta$ and to the components of $\mu$, we will obtain the same likelihood.
+As a result, the sampler tends to visit combinatorically many modes (growing with $K$).
+\textcite*{snijders_estimation_1997} proposes a clever trick, but it appears to work only in the case where $K=2$, and it is not immediately clear if it generalizes to weighted networks, wherein a symmetry argument is used in order to ``un-permute'' the samples and push them back onto a single mode that is identified by some ordering of the diagonal of $\theta$.
+When the mode jumps around, it makes the marginal posterior of the $Z's$ meaningless, which undercuts the primary goal of this project which is community detection.
+Another numerical problem is that when sampling $Z$, the term involving the likelihood of the data is typically vanishingly small, which is a challenge for floating point precision.
+Our implementation instead uses the log likelihood, but this makes the derivation slightly more complicated.
+Finally, while I do believe that a DAG argument suffices to establish conditional independence of $\mu$ and $\theta$ (since their path is blocked by $Z$, which we also condition on), I was not able to thoroughly convince myself that the components of $\theta$ are conditionally independent, although my derivation and implementation implicitly makes this assumption.
+
+R code implementing this procedure is available on \href{https://github.com/dankessler/608b-project}{github}, along with a short script that conducts a proof-of-concept numerical experiment.\footnote{While the code presently ``works'', i.e., produces results and not errors, the author believes that the current implementation is incorrect, as the results obtained are fairly nonsensical. The code will be updated as the author continues to work to implement this sampler so that it can be integrated into their broader research.}
 
 
 \begin{figure}[h]
@@ -252,14 +279,14 @@ R code implementing this procedure is available on \href{https://github.com/dank
 \label{sec:discussion}
 
 
+In this report, we introduced the stochastic block model, generalized it to the weighted network setting, and presented two related Bayesian formulations of this generative model with prior distributions over the generating parameters.
+We have reviewed published work implementing a Variational Bayes algorithm for community detection and detailed several of its more mystifying derivations.
+Subsequently, we have extended older work which presented a Gibbs sampling scheme for the classic SBM in the case where $K=2$.
 
-The data that I consider in my research  is motivated by applications in cognitive neuroscience and is related to the networks generated by the stochastic block model, but with several important extensions.
-First, I have been studying cases where we observe a \emph{sample} of networks on a common node set (or where the node set can be meaningfully registered across observations.
-Second, the networks that I study are typically (i) dense, (ii) weighted, and (iii) signed.
-Finally, I consider cases where in addition to observing the adjacency matrices $A^{(i)}$, we also observe nodal attributes $X^{(i)} \in \mathbb{R}^{n \times p}$, where $p$ is the number of covariates observed at each node.
+Our future work on this project, which will continue to undertake beyond this course given its relevance to our active research, will involve addressing the implementation issues discussed in \autoref{sec:sampl-based-appr} above.
+While the lack of numerical results in this report is disappointing, it was not for lack of effort, and as discussed above a (likely incorrect) draft implementation is now posted on  \href{https://github.com/dankessler/608b-project}{github} along with this report.
 
-While my current projects are largely focused on predicting observation-specific labels ($y_i)$ using $(A_i,X_i)$, in that work we currently consider $c$ fixed, known, and shared across all observations.
-However, in future iterations of the project I intend to consider cases where $c$ is considered unknown or possibly cases where $c$ varies across the sample.
+An additional line of future work will involve extending these approaches to settings where a \emph{sample} of networks is observed (as is typically the case in the applications I work on involving brain networks) and where it is reasonable to assume that there a common, but unknown, community structure in the population.
 
 
 
@@ -275,4 +302,8 @@ However, in future iterations of the project I intend to consider cases where $c
 %%% TeX-master: t
 %%% End:
 
-% LocalWords:  variational
+% LocalWords:  variational timeseries stochastically th holland iid
+%  LocalWords:  dyads aicher combinatorics factorizable argmin MATLAB
+%  LocalWords:  snijders multinomial notational hyperparameter un
+%  LocalWords:  conjugacy hyperparameters combinatorically github
+%  LocalWords:  vanishingly
